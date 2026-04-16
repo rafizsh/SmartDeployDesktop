@@ -1,0 +1,598 @@
+<html>
+<head>
+<title>SmartDeploy - Windows Deployment Wizard</title>
+<HTA:APPLICATION
+    ID="SmartDeploy"
+    APPLICATIONNAME="SmartDeploy"
+    BORDER="thin"
+    BORDERSTYLE="normal"
+    CAPTION="yes"
+    ICON="shell32.dll,15"
+    INNERBORDER="no"
+    MAXIMIZEBUTTON="no"
+    MINIMIZEBUTTON="no"
+    SCROLL="no"
+    SINGLEINSTANCE="yes"
+    SYSMENU="yes"
+    WINDOWSTATE="normal"
+/>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+body { background: #1e1e2e; color: #cdd6f4; overflow: hidden; }
+
+.header { background: #181825; padding: 14px 20px; border-bottom: 2px solid #313244; }
+.header h1 { font-size: 18px; font-weight: 600; color: #cba6f7; }
+.header .subtitle { font-size: 11px; color: #6c7086; margin-top: 2px; }
+
+.content { padding: 20px; height: 340px; overflow-y: auto; }
+
+.step { display: none; }
+.step.active { display: block; }
+.step h2 { font-size: 15px; color: #89b4fa; margin-bottom: 12px; }
+.step p { font-size: 12px; color: #a6adc8; margin-bottom: 10px; line-height: 1.5; }
+
+label { display: block; font-size: 12px; color: #a6adc8; margin-bottom: 4px; margin-top: 10px; }
+input[type=text], select { width: 100%; padding: 8px 10px; background: #313244; border: 1px solid #45475a; 
+    color: #cdd6f4; font-size: 13px; border-radius: 4px; outline: none; }
+input[type=text]:focus, select:focus { border-color: #89b4fa; }
+
+.row { display: flex; gap: 12px; }
+.row > div { flex: 1; }
+
+.info-box { background: #313244; border-radius: 6px; padding: 12px; margin: 8px 0; }
+.info-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
+.info-label { color: #6c7086; }
+.info-value { color: #a6e3a1; font-family: Consolas, monospace; }
+
+.log-box { background: #11111b; border-radius: 4px; padding: 10px; height: 200px; overflow-y: auto;
+    font-family: Consolas, monospace; font-size: 11px; color: #a6adc8; white-space: pre-wrap; }
+
+.progress-bar { background: #313244; border-radius: 4px; height: 24px; margin: 10px 0; overflow: hidden; }
+.progress-fill { background: #a6e3a1; height: 100%; width: 0%; transition: width 0.5s; 
+    display: flex; align-items: center; justify-content: center; color: #1e1e2e; font-size: 11px; font-weight: 600; }
+
+.check-item { padding: 6px 0; font-size: 12px; }
+.check-item .icon { display: inline-block; width: 20px; }
+
+.footer { background: #181825; padding: 12px 20px; border-top: 1px solid #313244;
+    display: flex; justify-content: space-between; align-items: center; position: absolute; bottom: 0; left: 0; right: 0; }
+.footer .step-info { font-size: 11px; color: #6c7086; }
+
+button { padding: 8px 20px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 500; }
+.btn-primary { background: #89b4fa; color: #1e1e2e; }
+.btn-primary:hover { background: #74c7ec; }
+.btn-primary:disabled { background: #45475a; color: #6c7086; cursor: default; }
+.btn-success { background: #a6e3a1; color: #1e1e2e; }
+.btn-danger { background: #f38ba8; color: #1e1e2e; }
+.btn-secondary { background: #45475a; color: #cdd6f4; }
+.btn-secondary:hover { background: #585b70; }
+</style>
+
+<script language="VBScript">
+' ============================================================================
+' SmartDeploy WinPE Deployment Wizard
+' ============================================================================
+
+Dim currentStep, totalSteps, serverIP, apiURL
+Dim myIP, myMAC, computerName, wimPath
+
+currentStep = 0
+totalSteps = 6
+serverIP = "%%SERVER_IP%%"
+apiURL = "http://" & serverIP & ":8000/api"
+
+Sub Window_OnLoad()
+    window.resizeTo 560, 520
+    CenterWindow
+    ShowStep 0
+    DetectSystemInfo
+End Sub
+
+Sub CenterWindow()
+    Dim sw, sh
+    sw = window.screen.width
+    sh = window.screen.height
+    window.moveTo (sw - 560) / 2, (sh - 520) / 2
+End Sub
+
+' ── System Detection ──
+
+Sub DetectSystemInfo()
+    On Error Resume Next
+    
+    ' Get IP via WMI
+    Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+    Set adapters = wmi.ExecQuery("SELECT IPAddress, MACAddress FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled = True")
+    For Each adapter In adapters
+        If Not IsNull(adapter.IPAddress) Then
+            myIP = adapter.IPAddress(0)
+            myMAC = adapter.MACAddress
+            Exit For
+        End If
+    Next
+    
+    If myIP = "" Then myIP = "detecting..."
+    If myMAC = "" Then myMAC = "detecting..."
+    
+    ' Update UI
+    document.getElementById("sys-ip").innerText = myIP
+    document.getElementById("sys-mac").innerText = myMAC
+    document.getElementById("sys-server").innerText = serverIP
+    
+    ' Default computer name
+    computerName = "PC-" & Right(Replace(myMAC, ":", ""), 6)
+    document.getElementById("txt-computername").value = computerName
+    
+    ' Report to server
+    ReportEvent "winpe_start", "WinPE GUI wizard started"
+    
+    On Error GoTo 0
+End Sub
+
+' ── Step Navigation ──
+
+Sub ShowStep(n)
+    Dim steps, i
+    Set steps = document.getElementsByClassName("step")
+    For i = 0 To steps.length - 1
+        steps(i).className = "step"
+    Next
+    steps(n).className = "step active"
+    currentStep = n
+    
+    document.getElementById("step-info").innerText = "Step " & (n + 1) & " of " & totalSteps
+    
+    ' Update buttons
+    document.getElementById("btn-back").disabled = (n = 0)
+    
+    If n = totalSteps - 1 Then
+        document.getElementById("btn-next").style.display = "none"
+        document.getElementById("btn-deploy").style.display = "inline-block"
+    Else
+        document.getElementById("btn-next").style.display = "inline-block"
+        document.getElementById("btn-deploy").style.display = "none"
+    End If
+    
+    ' Step-specific actions
+    If n = 1 Then CheckImageAvailability
+    If n = 4 Then BuildSummary
+End Sub
+
+Sub NextStep()
+    If currentStep < totalSteps - 1 Then
+        ' Validate current step
+        If ValidateStep(currentStep) Then
+            ShowStep currentStep + 1
+        End If
+    End If
+End Sub
+
+Sub PrevStep()
+    If currentStep > 0 Then ShowStep currentStep - 1
+End Sub
+
+Function ValidateStep(n)
+    ValidateStep = True
+    
+    Select Case n
+        Case 0 ' Welcome - always valid
+        Case 1 ' Image selection
+            wimPath = document.getElementById("txt-wimpath").value
+            If wimPath = "" Then
+                MsgBox "Please specify the path to install.wim", 48, "SmartDeploy"
+                ValidateStep = False
+            End If
+        Case 2 ' Computer name
+            computerName = document.getElementById("txt-computername").value
+            If computerName = "" Then
+                MsgBox "Please enter a computer name", 48, "SmartDeploy"
+                ValidateStep = False
+            End If
+        Case 3 ' Disk - always valid
+    End Select
+End Function
+
+' ── Image Check ──
+
+Sub CheckImageAvailability()
+    On Error Resume Next
+    Dim fso
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    Dim paths, found
+    paths = Array("Z:\Images\install.wim", "Y:\Images\install.wim")
+    found = ""
+    
+    For Each p In paths
+        If fso.FileExists(p) Then
+            found = p
+            Exit For
+        End If
+    Next
+    
+    If found <> "" Then
+        document.getElementById("txt-wimpath").value = found
+        document.getElementById("img-status").innerHTML = "<span style='color:#a6e3a1'>&#10003; Found: " & found & "</span>"
+        Dim f
+        Set f = fso.GetFile(found)
+        document.getElementById("img-size").innerText = FormatSize(f.Size)
+    Else
+        document.getElementById("img-status").innerHTML = "<span style='color:#f9e2af'>&#9888; install.wim not found on mapped shares. Enter path manually.</span>"
+    End If
+    
+    On Error GoTo 0
+End Sub
+
+Function FormatSize(bytes)
+    If bytes > 1073741824 Then
+        FormatSize = Round(bytes / 1073741824, 1) & " GB"
+    ElseIf bytes > 1048576 Then
+        FormatSize = Round(bytes / 1048576, 1) & " MB"
+    Else
+        FormatSize = Round(bytes / 1024, 1) & " KB"
+    End If
+End Function
+
+' ── Summary ──
+
+Sub BuildSummary()
+    wimPath = document.getElementById("txt-wimpath").value
+    computerName = document.getElementById("txt-computername").value
+    
+    Dim wimIndex
+    wimIndex = document.getElementById("sel-wimindex").value
+    
+    document.getElementById("sum-image").innerText = wimPath
+    document.getElementById("sum-index").innerText = wimIndex
+    document.getElementById("sum-name").innerText = computerName
+    document.getElementById("sum-server").innerText = serverIP
+End Sub
+
+' ── Deploy ──
+
+Sub StartDeploy()
+    document.getElementById("btn-deploy").disabled = True
+    document.getElementById("btn-back").disabled = True
+    ShowStep 5
+    
+    wimPath = document.getElementById("txt-wimpath").value
+    computerName = document.getElementById("txt-computername").value
+    
+    Dim wimIndex
+    wimIndex = document.getElementById("sel-wimindex").value
+    
+    RunDeploy wimPath, wimIndex, computerName
+End Sub
+
+Sub RunDeploy(wim, idx, cname)
+    Dim shell
+    Set shell = CreateObject("WScript.Shell")
+    
+    ' Step 1: Partition
+    LogMsg "=== DEPLOYMENT STARTED ==="
+    LogMsg ""
+    UpdateProgress 0, "Partitioning disk..."
+    ReportEvent "pipeline_step", "1: Partitioning disk"
+    
+    LogMsg "[1/7] Partitioning disk (GPT/UEFI)..."
+    Dim dpScript
+    dpScript = "select disk 0" & vbCrLf & "clean" & vbCrLf & "convert gpt" & vbCrLf
+    dpScript = dpScript & "create partition efi size=260" & vbCrLf & "format fs=fat32 quick label=""System""" & vbCrLf
+    dpScript = dpScript & "assign letter=S" & vbCrLf & "create partition msr size=16" & vbCrLf
+    dpScript = dpScript & "create partition primary" & vbCrLf & "format fs=ntfs quick label=""Windows""" & vbCrLf
+    dpScript = dpScript & "assign letter=W" & vbCrLf & "exit" & vbCrLf
+    
+    WriteFile "X:\diskpart.txt", dpScript
+    shell.Run "diskpart /s X:\diskpart.txt", 0, True
+    LogMsg "  Done."
+    UpdateProgress 14, "Disk partitioned"
+    
+    ' Step 2: Apply image
+    LogMsg ""
+    LogMsg "[2/7] Applying Windows image..."
+    LogMsg "  Image: " & wim
+    LogMsg "  Index: " & idx
+    LogMsg "  This will take 10-20 minutes..."
+    UpdateProgress 14, "Applying Windows image (10-20 min)..."
+    ReportEvent "pipeline_step", "2: Applying Windows image"
+    
+    Dim dismCmd
+    dismCmd = "dism /Apply-Image /ImageFile:""" & wim & """ /Index:" & idx & " /ApplyDir:W:\"
+    Dim rc
+    rc = shell.Run(dismCmd, 0, True)
+    If rc <> 0 Then
+        LogMsg "  ERROR: DISM failed (exit code " & rc & ")"
+        ReportEvent "pipeline_failed", "DISM apply failed"
+        UpdateProgress 14, "FAILED: Image apply error"
+        Exit Sub
+    End If
+    LogMsg "  Image applied successfully."
+    UpdateProgress 28, "Image applied"
+    
+    ' Step 3: Inject drivers
+    LogMsg ""
+    LogMsg "[3/7] Injecting drivers..."
+    ReportEvent "pipeline_step", "3: Injecting drivers"
+    UpdateProgress 42, "Injecting drivers..."
+    
+    Dim fso
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FolderExists("Z:\Drivers") Then
+        shell.Run "dism /Image:W:\ /Add-Driver /Driver:""Z:\Drivers"" /Recurse /ForceUnsigned", 0, True
+        LogMsg "  Drivers injected."
+    Else
+        LogMsg "  No drivers folder found - skipping."
+    End If
+    UpdateProgress 50, "Drivers done"
+    
+    ' Step 4: Unattend.xml
+    LogMsg ""
+    LogMsg "[4/7] Applying unattend.xml..."
+    ReportEvent "pipeline_step", "4: Applying unattend.xml"
+    UpdateProgress 57, "Applying unattend.xml..."
+    
+    Dim unattendPath
+    unattendPath = ""
+    If fso.FileExists("Z:\AnswerFiles\unattend.xml") Then unattendPath = "Z:\AnswerFiles\unattend.xml"
+    If unattendPath = "" And fso.FileExists("Z:\unattend.xml") Then unattendPath = "Z:\unattend.xml"
+    
+    If unattendPath <> "" Then
+        shell.Run "mkdir W:\Windows\Panther", 0, True
+        fso.CopyFile unattendPath, "W:\Windows\Panther\unattend.xml", True
+        
+        ' Set computer name in unattend.xml
+        Dim unattendContent
+        unattendContent = ReadFile("W:\Windows\Panther\unattend.xml")
+        unattendContent = Replace(unattendContent, "<ComputerName>*</ComputerName>", "<ComputerName>" & cname & "</ComputerName>")
+        WriteFile "W:\Windows\Panther\unattend.xml", unattendContent
+        
+        LogMsg "  Unattend.xml applied with computer name: " & cname
+    Else
+        LogMsg "  No unattend.xml found - using OOBE."
+    End If
+    UpdateProgress 64, "Unattend applied"
+    
+    ' Step 5: Task sequences
+    LogMsg ""
+    LogMsg "[5/7] Running task sequence scripts..."
+    ReportEvent "pipeline_step", "5: Task sequence scripts"
+    UpdateProgress 71, "Task sequences..."
+    
+    If fso.FolderExists("Z:\TaskSequences") Then
+        If fso.FileExists("Z:\TaskSequences\pre_install.cmd") Then
+            LogMsg "  Running pre_install.cmd..."
+            shell.Run "Z:\TaskSequences\pre_install.cmd", 0, True
+        End If
+        If fso.FileExists("Z:\TaskSequences\post_install.cmd") Then
+            shell.Run "mkdir W:\SmartDeploy", 0, True
+            fso.CopyFile "Z:\TaskSequences\post_install.cmd", "W:\SmartDeploy\post_install.cmd", True
+            LogMsg "  Staged post_install.cmd for first boot."
+        End If
+        If fso.FileExists("Z:\TaskSequences\software_install.cmd") Then
+            fso.CopyFile "Z:\TaskSequences\software_install.cmd", "W:\SmartDeploy\software_install.cmd", True
+            LogMsg "  Staged software_install.cmd for first boot."
+        End If
+    Else
+        LogMsg "  No task sequences found - skipping."
+    End If
+    UpdateProgress 78, "Task sequences done"
+    
+    ' Step 6: Boot config + SetupComplete
+    LogMsg ""
+    LogMsg "[6/7] Configuring boot manager..."
+    ReportEvent "pipeline_step", "6: Boot configuration"
+    UpdateProgress 85, "Configuring boot..."
+    
+    shell.Run "bcdboot W:\Windows /s S: /f UEFI", 0, True
+    
+    ' Create SetupComplete.cmd
+    shell.Run "mkdir W:\Windows\Setup\Scripts", 0, True
+    Dim setupComplete
+    setupComplete = "@echo off" & vbCrLf
+    setupComplete = setupComplete & "REM SmartDeploy Post-Install" & vbCrLf
+    setupComplete = setupComplete & "if exist C:\SmartDeploy\post_install.cmd call C:\SmartDeploy\post_install.cmd" & vbCrLf
+    setupComplete = setupComplete & "if exist C:\SmartDeploy\software_install.cmd call C:\SmartDeploy\software_install.cmd" & vbCrLf
+    setupComplete = setupComplete & "del /f /q C:\Windows\Setup\Scripts\SetupComplete.cmd" & vbCrLf
+    WriteFile "W:\Windows\Setup\Scripts\SetupComplete.cmd", setupComplete
+    LogMsg "  Boot configured + SetupComplete.cmd staged."
+    UpdateProgress 92, "Boot configured"
+    
+    ' Step 7: Complete
+    LogMsg ""
+    LogMsg "[7/7] Deployment complete!"
+    ReportEvent "pipeline_complete", "Deployment complete - " & cname
+    UpdateProgress 100, "COMPLETE - Rebooting in 15 seconds..."
+    
+    LogMsg ""
+    LogMsg "=== DEPLOYMENT COMPLETE ==="
+    LogMsg "Computer name: " & cname
+    LogMsg "Rebooting in 15 seconds..."
+    
+    document.getElementById("btn-reboot").style.display = "inline-block"
+    
+    ' Auto-reboot after 15 seconds
+    window.setTimeout "DoReboot", 15000
+End Sub
+
+Sub DoReboot()
+    Dim shell
+    Set shell = CreateObject("WScript.Shell")
+    shell.Run "wpeutil reboot", 0, False
+End Sub
+
+Sub CancelReboot()
+    ' Cancel by just not doing anything - user can close window
+    LogMsg "Reboot cancelled. Close this window for command prompt."
+End Sub
+
+' ── Helpers ──
+
+Sub LogMsg(msg)
+    Dim box
+    Set box = document.getElementById("deploy-log")
+    box.innerText = box.innerText & msg & vbCrLf
+    box.scrollTop = box.scrollHeight
+End Sub
+
+Sub UpdateProgress(pct, msg)
+    Dim fill
+    Set fill = document.getElementById("progress-fill")
+    fill.style.width = pct & "%"
+    fill.innerText = pct & "% - " & msg
+End Sub
+
+Sub ReportEvent(evt, detail)
+    On Error Resume Next
+    Dim http
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "POST", apiURL & "/pipeline/client-event", False
+    http.setRequestHeader "Content-Type", "application/json"
+    Dim payload
+    payload = "{""mac"":""" & myMAC & """,""ip"":""" & myIP & """,""event"":""" & evt & """,""detail"":""" & detail & """}"
+    http.Send payload
+    On Error GoTo 0
+End Sub
+
+Sub WriteFile(path, content)
+    Dim fso, f
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set f = fso.CreateTextFile(path, True)
+    f.Write content
+    f.Close
+End Sub
+
+Function ReadFile(path)
+    Dim fso, f
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set f = fso.OpenTextFile(path, 1)
+    ReadFile = f.ReadAll
+    f.Close
+End Function
+</script>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h1>SmartDeploy - Windows Deployment Wizard</h1>
+    <div class="subtitle">PXE Boot &rarr; Image &rarr; Configure &rarr; Deploy</div>
+</div>
+
+<!-- Content -->
+<div class="content">
+
+    <!-- Step 0: Welcome -->
+    <div class="step active" id="step0">
+        <h2>Welcome</h2>
+        <p>This wizard will deploy Windows to this computer. The following steps will be performed:</p>
+        <div style="margin: 10px 0; font-size: 12px; line-height: 2;">
+            1. Select Windows image (install.wim)<br/>
+            2. Set computer name<br/>
+            3. Configure disk partitioning<br/>
+            4. Review and confirm<br/>
+            5. Deploy (automated)
+        </div>
+        <div class="info-box">
+            <div class="info-row"><span class="info-label">Server</span><span class="info-value" id="sys-server">...</span></div>
+            <div class="info-row"><span class="info-label">My IP</span><span class="info-value" id="sys-ip">detecting...</span></div>
+            <div class="info-row"><span class="info-label">My MAC</span><span class="info-value" id="sys-mac">detecting...</span></div>
+        </div>
+    </div>
+
+    <!-- Step 1: Image Selection -->
+    <div class="step" id="step1">
+        <h2>Select Windows Image</h2>
+        <p>Choose the Windows image to deploy to this computer.</p>
+        <div id="img-status" style="margin: 8px 0; font-size: 12px;"></div>
+        <label>Path to install.wim</label>
+        <input type="text" id="txt-wimpath" value="Z:\Images\install.wim"/>
+        <div class="row" style="margin-top: 10px;">
+            <div>
+                <label>Image Index</label>
+                <select id="sel-wimindex">
+                    <option value="1">1 - Windows 11 Pro</option>
+                    <option value="2">2 - Windows 11 Enterprise</option>
+                    <option value="3">3 - Windows 11 Education</option>
+                </select>
+            </div>
+            <div>
+                <label>Image Size</label>
+                <div class="info-box" style="padding: 8px 10px; margin-top: 0;">
+                    <span id="img-size" style="font-family: Consolas; font-size: 13px;">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Computer Name -->
+    <div class="step" id="step2">
+        <h2>Computer Name</h2>
+        <p>Enter the name for this computer. This will be set during Windows setup.</p>
+        <label>Computer Name</label>
+        <input type="text" id="txt-computername" value="" style="font-size: 16px; padding: 10px;"/>
+        <p style="margin-top: 12px; color: #6c7086; font-size: 11px;">
+            Naming convention examples: PC-001, WS-FINANCE-01, LAP-JSMITH<br/>
+            Max 15 characters. Letters, numbers, and hyphens only.
+        </p>
+    </div>
+
+    <!-- Step 3: Disk Configuration -->
+    <div class="step" id="step3">
+        <h2>Disk Configuration</h2>
+        <p>The following partition layout will be applied to Disk 0. All existing data will be erased.</p>
+        <div class="info-box" style="margin-top: 12px;">
+            <div class="info-row"><span class="info-label">Partition Table</span><span class="info-value">GPT (UEFI)</span></div>
+            <div class="info-row"><span class="info-label">EFI System Partition</span><span class="info-value">260 MB (FAT32)</span></div>
+            <div class="info-row"><span class="info-label">MSR Partition</span><span class="info-value">16 MB</span></div>
+            <div class="info-row"><span class="info-label">Windows Partition</span><span class="info-value">Remaining space (NTFS)</span></div>
+        </div>
+        <p style="margin-top: 12px; color: #f38ba8; font-size: 12px;">
+            &#9888; WARNING: All data on Disk 0 will be permanently erased!
+        </p>
+    </div>
+
+    <!-- Step 4: Review -->
+    <div class="step" id="step4">
+        <h2>Review &amp; Confirm</h2>
+        <p>Please review the deployment settings before proceeding.</p>
+        <div class="info-box" style="margin-top: 8px;">
+            <div class="info-row"><span class="info-label">Windows Image</span><span class="info-value" id="sum-image">--</span></div>
+            <div class="info-row"><span class="info-label">Image Index</span><span class="info-value" id="sum-index">--</span></div>
+            <div class="info-row"><span class="info-label">Computer Name</span><span class="info-value" id="sum-name">--</span></div>
+            <div class="info-row"><span class="info-label">Disk Layout</span><span class="info-value">GPT / UEFI</span></div>
+            <div class="info-row"><span class="info-label">Server</span><span class="info-value" id="sum-server">--</span></div>
+            <div class="info-row"><span class="info-label">Drivers</span><span class="info-value">Z:\Drivers (if available)</span></div>
+            <div class="info-row"><span class="info-label">Unattend.xml</span><span class="info-value">Z:\AnswerFiles (if available)</span></div>
+        </div>
+        <p style="margin-top: 10px; color: #f9e2af; font-size: 12px;">
+            Click <strong>Deploy</strong> to begin. This process takes 10-30 minutes and cannot be undone.
+        </p>
+    </div>
+
+    <!-- Step 5: Deploying -->
+    <div class="step" id="step5">
+        <h2>Deploying Windows...</h2>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill">0%</div>
+        </div>
+        <div class="log-box" id="deploy-log"></div>
+        <div style="margin-top: 8px; text-align: right;">
+            <button class="btn-success" id="btn-reboot" onclick="DoReboot" style="display:none;">Reboot Now</button>
+            <button class="btn-secondary" onclick="CancelReboot" style="margin-left: 8px;">Cancel Reboot</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- Footer -->
+<div class="footer">
+    <span class="step-info" id="step-info">Step 1 of 6</span>
+    <div>
+        <button class="btn-secondary" id="btn-back" onclick="PrevStep" disabled>Back</button>
+        <button class="btn-primary" id="btn-next" onclick="NextStep" style="margin-left: 8px;">Next</button>
+        <button class="btn-success" id="btn-deploy" onclick="StartDeploy" style="display:none; margin-left: 8px;">Deploy</button>
+    </div>
+</div>
+
+</body>
+</html>

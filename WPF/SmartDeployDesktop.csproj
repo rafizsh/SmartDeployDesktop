@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>SmartDeployDesktop</RootNamespace>
+    <AssemblyName>SmartDeployDesktop</AssemblyName>
+    <Version>1.0.0</Version>
+    <Description>SmartDeploy Desktop - Windows Imaging &amp; Deployment Tool</Description>
+    <Company>SmartDeploy</Company>
+    <Product>SmartDeploy Desktop</Product>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.1.0" />
+    <PackageReference Include="MaterialDesignColors" Version="3.1.0" />
+  </ItemGroup>
+
+  <!-- Embed the entire Python server as a resource -->
+  <ItemGroup>
+    <Content Include="..\Server\**\*" CopyToOutputDirectory="PreserveNewest" Link="Server\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>
