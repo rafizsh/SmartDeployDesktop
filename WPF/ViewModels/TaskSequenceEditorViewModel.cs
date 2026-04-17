@@ -23,7 +23,6 @@ namespace SmartDeployDesktop.ViewModels
     public partial class TaskSequenceEditorViewModel : ObservableObject
     {
         private readonly ApiClient _api;
-        private readonly DispatcherTimer _saveTimer;
         private bool _suppressDirty;
         private bool _isSaving;
 
@@ -54,19 +53,15 @@ namespace SmartDeployDesktop.ViewModels
         [ObservableProperty] private string _statusMessage = "";
         [ObservableProperty] private bool _hasUnsavedChanges;
 
+        // Signals the View to close after Save or Cancel
+        public event EventHandler? RequestClose;
+
         // Architecture options for the header combobox
         public List<string> ArchitectureOptions { get; } = new() { "x64", "x86", "arm64" };
 
         public TaskSequenceEditorViewModel(ApiClient api)
         {
             _api = api;
-            // Debounced auto-save: fires ~500ms after the last change
-            _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            _saveTimer.Tick += async (_, __) =>
-            {
-                _saveTimer.Stop();
-                await SaveAsync();
-            };
         }
 
         // --------------------------------------------------------------------
@@ -138,7 +133,7 @@ namespace SmartDeployDesktop.ViewModels
 
         private TaskStepViewModel CreateStepVm(TaskStepDto dto)
         {
-            var vm = new TaskStepViewModel(dto, StepCatalog, GatherVariables, ConditionOperators);
+            var vm = new TaskStepViewModel(dto, StepCatalog, GatherVariables, ConditionOperators, _api);
             vm.AnyFieldChanged += OnStepChanged;
             return vm;
         }
@@ -171,9 +166,7 @@ namespace SmartDeployDesktop.ViewModels
         {
             if (_suppressDirty) return;
             HasUnsavedChanges = true;
-            StatusMessage = "Unsaved changes...";
-            _saveTimer.Stop();
-            _saveTimer.Start();
+            StatusMessage = "Unsaved changes";
         }
 
         public async Task SaveAsync()
@@ -192,11 +185,33 @@ namespace SmartDeployDesktop.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"Save failed: {ex.Message}";
+                throw;
             }
             finally
             {
                 _isSaving = false;
             }
+        }
+
+        [RelayCommand]
+        private async Task Save()
+        {
+            try
+            {
+                await SaveAsync();
+                RequestClose?.Invoke(this, EventArgs.Empty);
+            }
+            catch
+            {
+                // SaveAsync already set a StatusMessage; leave the dialog open
+                // so the user can fix/retry without losing their edits.
+            }
+        }
+
+        [RelayCommand]
+        private void Cancel()
+        {
+            RequestClose?.Invoke(this, EventArgs.Empty);
         }
 
         public TaskSequenceDto ToDto()
@@ -410,6 +425,7 @@ namespace SmartDeployDesktop.ViewModels
         public event EventHandler? AnyFieldChanged;
 
         private readonly List<StepCatalogEntryDto> _catalog;
+        private readonly ApiClient? _api;   // Used to fetch fill-preview on demand
         public List<GatherVariableDto> GatherVariables { get; }
         public List<ConditionOperatorDto> ConditionOperators { get; }
 
@@ -434,9 +450,11 @@ namespace SmartDeployDesktop.ViewModels
             TaskStepDto dto,
             List<StepCatalogEntryDto> catalog,
             List<GatherVariableDto> gatherVars,
-            List<ConditionOperatorDto> operators)
+            List<ConditionOperatorDto> operators,
+            ApiClient? api = null)
         {
             _catalog = catalog;
+            _api = api;
             GatherVariables = gatherVars;
             ConditionOperators = operators;
 
@@ -470,6 +488,48 @@ namespace SmartDeployDesktop.ViewModels
                 ConditionOperator = dto.Condition.Operator;
                 ConditionValue = dto.Condition.Value;
                 ConditionNegate = dto.Condition.Negate;
+            }
+
+            // Kick off fill-preview fetch so the "🔄 Pull from settings" buttons
+            // appear on any parameters we know how to auto-fill from infra settings.
+            if (_api != null) _ = LoadFillPreviewAsync();
+        }
+
+        /// <summary>
+        /// Ask the server which parameters for this step type can be auto-filled
+        /// from infrastructure settings, and enable the pull button on those.
+        /// </summary>
+        private async Task LoadFillPreviewAsync()
+        {
+            if (_api == null) return;
+            try
+            {
+                var preview = await _api.GetStepFillPreviewAsync(Type);
+                if (preview?.Fill == null || preview.Fill.Count == 0) return;
+
+                foreach (var param in Parameters)
+                {
+                    if (preview.Fill.ContainsKey(param.Key))
+                    {
+                        // Capture current preview in closure so the button always
+                        // pulls the latest server-side value when clicked.
+                        var localApi = _api;
+                        var stepType = Type;
+                        param.EnablePullFromSettings(async (paramKey) =>
+                        {
+                            // Refetch on click so any settings changes since the
+                            // editor opened are reflected.
+                            var fresh = await localApi.GetStepFillPreviewAsync(stepType);
+                            if (fresh?.Fill != null && fresh.Fill.TryGetValue(paramKey, out var v))
+                                return v;
+                            return null;
+                        });
+                    }
+                }
+            }
+            catch
+            {
+                // Non-fatal - the editor still works, just without auto-fill buttons.
             }
         }
 
@@ -512,7 +572,8 @@ namespace SmartDeployDesktop.ViewModels
     // ========================================================================
     // Dynamic parameter editor - one per step parameter.
     // Decides which control to show (Bool / Int / List / String) based on
-    // the default value's JSON type. The XAML uses DataTriggers on Kind.
+    // the default value's type. Handles Newtonsoft JToken wrappers since the
+    // API returns Dictionary<string, object> where values are JValue/JArray.
     // ========================================================================
     public partial class ParameterEditorViewModel : ObservableObject
     {
@@ -520,17 +581,38 @@ namespace SmartDeployDesktop.ViewModels
 
         public string Key { get; }
         public string DisplayLabel { get; }
-        public string Kind { get; }                     // "bool", "int", "list", "string"
+
+        // Kind must be observable so WPF visibility bindings evaluate correctly
+        // when the DataTemplate is applied. A plain property returns default
+        // on first read in some binding contexts.
+        [ObservableProperty] private string _kind = "string";
 
         [ObservableProperty] private bool _boolValue;
         [ObservableProperty] private int _intValue;
         [ObservableProperty] private string _stringValue = "";
         [ObservableProperty] private string _listValue = "";   // newline-separated in the editor
 
+        // True when this parameter can be auto-filled from infrastructure settings.
+        // Drives visibility of the "🔄 Pull from settings" button in the editor.
+        [ObservableProperty] private bool _canPullFromSettings;
+
+        // Callback invoked when the user clicks the pull-from-settings button.
+        // Set by the containing TaskStepViewModel once it knows the step type
+        // and which parameters are eligible. Null means "can't pull".
+        private Func<string, Task<object?>>? _pullResolver;
+
         public ParameterEditorViewModel(string key, object? rawValue)
         {
             Key = key;
             DisplayLabel = HumanizeKey(key);
+
+            // Unwrap Newtonsoft JToken types. When we deserialize
+            // Dictionary<string, object> from JSON, values come back as JValue,
+            // JArray, JObject - not native bool/int/string.
+            if (rawValue is Newtonsoft.Json.Linq.JValue jv)
+            {
+                rawValue = jv.Value;
+            }
 
             switch (rawValue)
             {
@@ -546,11 +628,11 @@ namespace SmartDeployDesktop.ViewModels
 
                 case long l:
                     Kind = "int";
-                    IntValue = (int)l;
+                    IntValue = (int)Math.Clamp(l, int.MinValue, int.MaxValue);
                     break;
 
                 case double d:
-                    // Treat whole-number doubles (common from JSON) as ints
+                    // Whole-number doubles (very common from JSON) are ints
                     if (Math.Abs(d - Math.Round(d)) < 0.0001)
                     {
                         Kind = "int";
@@ -563,10 +645,21 @@ namespace SmartDeployDesktop.ViewModels
                     }
                     break;
 
+                case Newtonsoft.Json.Linq.JArray jarr:
+                    Kind = "list";
+                    ListValue = string.Join(Environment.NewLine,
+                        jarr.Select(t => t?.ToString() ?? ""));
+                    break;
+
                 case System.Collections.IEnumerable enumerable when rawValue is not string:
                     Kind = "list";
                     ListValue = string.Join(Environment.NewLine,
                         enumerable.Cast<object>().Select(x => x?.ToString() ?? ""));
+                    break;
+
+                case string s:
+                    Kind = "string";
+                    StringValue = s;
                     break;
 
                 case null:
@@ -575,6 +668,7 @@ namespace SmartDeployDesktop.ViewModels
                     break;
 
                 default:
+                    // Fallback: serialize anything we don't recognise as a string
                     Kind = "string";
                     StringValue = rawValue.ToString() ?? "";
                     break;
@@ -585,6 +679,68 @@ namespace SmartDeployDesktop.ViewModels
         partial void OnIntValueChanged(int value)       => ValueChanged?.Invoke(this, EventArgs.Empty);
         partial void OnStringValueChanged(string value) => ValueChanged?.Invoke(this, EventArgs.Empty);
         partial void OnListValueChanged(string value)   => ValueChanged?.Invoke(this, EventArgs.Empty);
+
+        /// <summary>
+        /// Enable the "Pull from settings" button for this parameter.
+        /// Called by TaskStepViewModel after it fetches the fill preview from the API.
+        /// </summary>
+        public void EnablePullFromSettings(Func<string, Task<object?>> resolver)
+        {
+            _pullResolver = resolver;
+            CanPullFromSettings = true;
+        }
+
+        /// <summary>
+        /// Overwrite this editor's value from a raw object (typed by JSON).
+        /// Mirrors the type detection in the constructor so UI controls stay consistent.
+        /// </summary>
+        public void ApplyFilledValue(object? rawValue)
+        {
+            if (rawValue is Newtonsoft.Json.Linq.JValue jv) rawValue = jv.Value;
+
+            switch (Kind)
+            {
+                case "bool":
+                    if (rawValue is bool b1) BoolValue = b1;
+                    else if (bool.TryParse(rawValue?.ToString(), out var b2)) BoolValue = b2;
+                    break;
+
+                case "int":
+                    if (rawValue is int i1) IntValue = i1;
+                    else if (rawValue is long l) IntValue = (int)Math.Clamp(l, int.MinValue, int.MaxValue);
+                    else if (rawValue is double d) IntValue = (int)Math.Round(d);
+                    else if (int.TryParse(rawValue?.ToString(), out var i2)) IntValue = i2;
+                    break;
+
+                case "list":
+                    if (rawValue is Newtonsoft.Json.Linq.JArray jarr)
+                        ListValue = string.Join(Environment.NewLine, jarr.Select(t => t?.ToString() ?? ""));
+                    else if (rawValue is System.Collections.IEnumerable enumerable && rawValue is not string)
+                        ListValue = string.Join(Environment.NewLine, enumerable.Cast<object>().Select(x => x?.ToString() ?? ""));
+                    else
+                        ListValue = rawValue?.ToString() ?? "";
+                    break;
+
+                default:
+                    StringValue = rawValue?.ToString() ?? "";
+                    break;
+            }
+        }
+
+        [RelayCommand]
+        private async Task PullFromSettings()
+        {
+            if (_pullResolver == null) return;
+            try
+            {
+                var value = await _pullResolver(Key);
+                if (value != null) ApplyFilledValue(value);
+            }
+            catch
+            {
+                // Swallow - if settings can't be reached we just leave the field alone.
+            }
+        }
 
         public object GetTypedValue()
         {
@@ -609,11 +765,6 @@ namespace SmartDeployDesktop.ViewModels
             return string.Join(" ", parts.Select(p =>
                 p.Length == 0 ? p : char.ToUpper(p[0]) + p.Substring(1)));
         }
-
-        public bool IsBool   => Kind == "bool";
-        public bool IsInt    => Kind == "int";
-        public bool IsList   => Kind == "list";
-        public bool IsString => Kind == "string";
     }
 
     // ========================================================================

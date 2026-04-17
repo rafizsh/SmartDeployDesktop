@@ -3,9 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:SmartDeployDesktop.ViewModels"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        Title="Task Sequence Editor" Width="1200" Height="780" MinWidth="1000" MinHeight="600"
+        Title="Task Sequence Editor" Width="1380" Height="900" MinWidth="1150" MinHeight="690"
         WindowStartupLocation="CenterOwner" Background="{StaticResource BgBase}"
-        TextElement.Foreground="{StaticResource TextPrimary}" FontFamily="Segoe UI">
+        TextElement.Foreground="{StaticResource TextPrimary}" FontFamily="Segoe UI"
+        FontSize="14">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <Style x:Key="EditorRow" TargetType="Border">
@@ -41,7 +42,7 @@
         <!-- ============================================================= -->
         <Border Grid.Row="0" Background="{StaticResource BgSurface}" Padding="16,10" BorderBrush="{StaticResource BgOverlay}" BorderThickness="0,0,0,1">
             <DockPanel>
-                <TextBlock Text="📋 Task Sequence Editor" FontSize="16" FontWeight="SemiBold"
+                <TextBlock Text="📋 Task Sequence Editor" FontSize="18" FontWeight="SemiBold"
                            Foreground="{StaticResource AccentYellow}" VerticalAlignment="Center"/>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                     <Button Content="📋 Duplicate" Command="{Binding DuplicateCommand}"
@@ -53,9 +54,12 @@
                     <Button Content="⬆ Export" Command="{Binding ExportCommand}"
                             Style="{StaticResource MaterialDesignFlatButton}" Foreground="{StaticResource AccentGreen}"
                             Margin="0,0,12,0"/>
-                    <Button Content="Close" Click="CloseButton_Click"
+                    <Button Content="Cancel" Command="{Binding CancelCommand}"
+                            Style="{StaticResource MaterialDesignFlatButton}" Foreground="{StaticResource TextSecondary}"
+                            Padding="16,4" Margin="0,0,8,0"/>
+                    <Button Content="💾 Save" Command="{Binding SaveCommand}"
                             Style="{StaticResource MaterialDesignRaisedButton}"
-                            Background="{StaticResource AccentBlue}" Foreground="Black" Padding="16,4"/>
+                            Background="{StaticResource AccentGreen}" Foreground="Black" Padding="20,4"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -113,7 +117,7 @@
                             <Border Grid.Row="0" Padding="12,10" Background="{StaticResource BgBase}">
                                 <DockPanel>
                                     <TextBlock Text="Steps" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
-                                    <TextBlock DockPanel.Dock="Right" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center">
+                                    <TextBlock DockPanel.Dock="Right" Foreground="{StaticResource TextMuted}" FontSize="13" VerticalAlignment="Center">
                                         <Run Text="{Binding Steps.Count, Mode=OneWay}"/>
                                         <Run Text=" total"/>
                                     </TextBlock>
@@ -154,7 +158,7 @@
                                                     <Border Grid.Column="0" Width="26" Height="26" CornerRadius="13"
                                                             Background="{StaticResource BgOverlay}" Margin="0,0,8,0">
                                                         <TextBlock Text="{Binding Order}" Foreground="{StaticResource AccentCyan}"
-                                                                   FontWeight="Bold" FontSize="12"
+                                                                   FontWeight="Bold" FontSize="14"
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     </Border>
 
@@ -162,11 +166,11 @@
                                                               ToolTip="Enable or disable this step"/>
 
                                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" FontSize="13"/>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" FontSize="15"/>
                                                         <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{Binding Category}" Foreground="{StaticResource AccentMauve}" FontSize="10" Margin="0,2,6,0"/>
-                                                            <TextBlock Text="{Binding Type}" Foreground="{StaticResource TextMuted}" FontSize="10" Margin="0,2,0,0"/>
-                                                            <TextBlock Text=" • with condition" Foreground="{StaticResource AccentYellow}" FontSize="10" Margin="4,2,0,0"
+                                                            <TextBlock Text="{Binding Category}" Foreground="{StaticResource AccentMauve}" FontSize="12" Margin="0,2,6,0"/>
+                                                            <TextBlock Text="{Binding Type}" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,2,0,0"/>
+                                                            <TextBlock Text=" • with condition" Foreground="{StaticResource AccentYellow}" FontSize="12" Margin="4,2,0,0"
                                                                        Visibility="{Binding HasCondition, Converter={StaticResource BoolToVis}}"/>
                                                         </StackPanel>
                                                     </StackPanel>
@@ -176,12 +180,12 @@
                                                                 CommandParameter="{Binding}"
                                                                 Style="{StaticResource MaterialDesignFlatButton}"
                                                                 Foreground="{StaticResource TextSecondary}"
-                                                                Width="26" Height="26" Padding="0" FontSize="10" ToolTip="Move up"/>
+                                                                Width="26" Height="26" Padding="0" FontSize="12" ToolTip="Move up"/>
                                                         <Button Content="▼" Command="{Binding DataContext.MoveStepDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}"
                                                                 Style="{StaticResource MaterialDesignFlatButton}"
                                                                 Foreground="{StaticResource TextSecondary}"
-                                                                Width="26" Height="26" Padding="0" FontSize="10" ToolTip="Move down"/>
+                                                                Width="26" Height="26" Padding="0" FontSize="12" ToolTip="Move down"/>
                                                         <Button Content="✕" Command="{Binding DataContext.DeleteStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}"
                                                                 Style="{StaticResource MaterialDesignFlatButton}"
@@ -224,7 +228,7 @@
                             <!-- Step header -->
                             <Border Background="{StaticResource BgSurface}" CornerRadius="4" Padding="14,12" Margin="0,0,0,12">
                                 <StackPanel>
-                                    <TextBlock Text="Step Settings" Foreground="{StaticResource AccentYellow}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                                    <TextBlock Text="Step Settings" Foreground="{StaticResource AccentYellow}" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,10"/>
                                     <UniformGrid Columns="2">
                                         <StackPanel Margin="0,0,8,8">
                                             <TextBlock Text="Name" Style="{StaticResource FieldLabel}"/>
@@ -246,13 +250,13 @@
                             <Border Background="{StaticResource BgSurface}" CornerRadius="4" Padding="14,12" Margin="0,0,0,12">
                                 <StackPanel>
                                     <DockPanel Margin="0,0,0,8">
-                                        <TextBlock Text="Condition" Foreground="{StaticResource AccentYellow}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Condition" Foreground="{StaticResource AccentYellow}" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
                                         <CheckBox DockPanel.Dock="Right" HorizontalAlignment="Right" Content="Has condition"
                                                   IsChecked="{Binding HasCondition}" Foreground="{StaticResource TextPrimary}"/>
                                     </DockPanel>
                                     <StackPanel Visibility="{Binding HasCondition, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="Run this step only when the condition below evaluates true."
-                                                   Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                                   Foreground="{StaticResource TextMuted}" FontSize="13" Margin="0,0,0,8" TextWrapping="Wrap"/>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -291,27 +295,99 @@
                             <!-- Parameters - typed editor per parameter -->
                             <Border Background="{StaticResource BgSurface}" CornerRadius="4" Padding="14,12">
                                 <StackPanel>
-                                    <TextBlock Text="Parameters" Foreground="{StaticResource AccentYellow}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                                    <TextBlock Text="Parameters" Foreground="{StaticResource AccentYellow}" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,10"/>
                                     <ItemsControl ItemsSource="{Binding Parameters}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:ParameterEditorViewModel}">
                                                 <StackPanel Margin="0,0,0,10">
                                                     <TextBlock Text="{Binding DisplayLabel}" Style="{StaticResource FieldLabel}"/>
-                                                    <!-- Bool -->
-                                                    <CheckBox IsChecked="{Binding BoolValue}" Foreground="{StaticResource TextPrimary}"
-                                                              Visibility="{Binding IsBool, Converter={StaticResource BoolToVis}}"
-                                                              Content="{Binding DisplayLabel}"/>
-                                                    <!-- Int -->
-                                                    <TextBox Text="{Binding IntValue, UpdateSourceTrigger=PropertyChanged, Delay=300}"
-                                                             Visibility="{Binding IsInt, Converter={StaticResource BoolToVis}}"/>
-                                                    <!-- List (newline-separated) -->
-                                                    <TextBox Text="{Binding ListValue, UpdateSourceTrigger=PropertyChanged, Delay=300}"
-                                                             Visibility="{Binding IsList, Converter={StaticResource BoolToVis}}"
-                                                             AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" VerticalScrollBarVisibility="Auto"
-                                                             ToolTip="One entry per line"/>
-                                                    <!-- String -->
-                                                    <TextBox Text="{Binding StringValue, UpdateSourceTrigger=PropertyChanged, Delay=300}"
-                                                             Visibility="{Binding IsString, Converter={StaticResource BoolToVis}}"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Column 0: the typed input (one of bool/int/list/string shows at a time) -->
+                                                        <Grid Grid.Column="0">
+                                                            <!-- Bool -->
+                                                            <CheckBox IsChecked="{Binding BoolValue}" Foreground="{StaticResource TextPrimary}"
+                                                                      Content="{Binding DisplayLabel}"
+                                                                      VerticalAlignment="Center">
+                                                                <CheckBox.Style>
+                                                                    <Style TargetType="CheckBox">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Kind}" Value="bool">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </CheckBox.Style>
+                                                            </CheckBox>
+                                                            <!-- Int -->
+                                                            <TextBox Text="{Binding IntValue, UpdateSourceTrigger=PropertyChanged, Delay=300}">
+                                                                <TextBox.Style>
+                                                                    <Style TargetType="TextBox">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Kind}" Value="int">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBox.Style>
+                                                            </TextBox>
+                                                            <!-- List (newline-separated) -->
+                                                            <TextBox Text="{Binding ListValue, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" VerticalScrollBarVisibility="Auto"
+                                                                     ToolTip="One entry per line">
+                                                                <TextBox.Style>
+                                                                    <Style TargetType="TextBox">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Kind}" Value="list">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBox.Style>
+                                                            </TextBox>
+                                                            <!-- String (default) -->
+                                                            <TextBox Text="{Binding StringValue, UpdateSourceTrigger=PropertyChanged, Delay=300}">
+                                                                <TextBox.Style>
+                                                                    <Style TargetType="TextBox">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Kind}" Value="string">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBox.Style>
+                                                            </TextBox>
+                                                        </Grid>
+
+                                                        <!-- Column 1: Pull-from-settings button, visible only for eligible params -->
+                                                        <Button Grid.Column="1"
+                                                                Content="🔄"
+                                                                Command="{Binding PullFromSettingsCommand}"
+                                                                ToolTip="Pull this value from infrastructure settings"
+                                                                Foreground="{StaticResource AccentCyan}"
+                                                                Margin="8,0,0,0"
+                                                                Width="36" Height="32" Padding="0"
+                                                                VerticalAlignment="Center">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding CanPullFromSettings}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                    </Grid>
                                                 </StackPanel>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -323,7 +399,7 @@
 
                     <!-- Empty state when no step is selected -->
                     <TextBlock Grid.Column="2" Text="Select a step on the left, or add one from the catalog."
-                               Foreground="{StaticResource TextMuted}" FontSize="14"
+                               Foreground="{StaticResource TextMuted}" FontSize="16"
                                HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -347,8 +423,8 @@
                     <StackPanel>
                         <Border Background="{StaticResource BgSurface}" CornerRadius="4" Padding="14,12" Margin="0,0,0,12">
                             <StackPanel>
-                                <TextBlock Text="Sequence Variables" Foreground="{StaticResource AccentYellow}" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,4"/>
-                                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextMuted}" FontSize="11" Margin="0,0,0,10">
+                                <TextBlock Text="Sequence Variables" Foreground="{StaticResource AccentYellow}" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,4"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextMuted}" FontSize="13" Margin="0,0,0,10">
                                     Define variables that can be referenced by step conditions and parameters. Variables defined here are overridden by values produced by Gather steps at runtime.
                                 </TextBlock>
                                 <Button Content="➕ Add Variable" Command="{Binding AddVariableCommand}"
@@ -407,11 +483,10 @@
                             </Style>
                         </Ellipse.Style>
                     </Ellipse>
-                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextSecondary}" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextSecondary}" FontSize="13" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right"
-                           Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center">
-                    <Run Text="Auto-save enabled · "/>
+                           Foreground="{StaticResource TextMuted}" FontSize="13" VerticalAlignment="Center">
                     <Run Text="{Binding SequenceId, StringFormat='ID: {0}', Mode=OneWay}"/>
                 </TextBlock>
             </DockPanel>

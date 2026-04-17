@@ -4,9 +4,10 @@
         xmlns:vm="clr-namespace:SmartDeployDesktop.ViewModels"
         xmlns:svc="clr-namespace:SmartDeployDesktop.Services"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        Title="Add Step" Width="820" Height="600" MinWidth="680" MinHeight="480"
+        Title="Add Step" Width="945" Height="690" MinWidth="780" MinHeight="555"
         WindowStartupLocation="CenterOwner" Background="{StaticResource BgBase}"
-        TextElement.Foreground="{StaticResource TextPrimary}" FontFamily="Segoe UI">
+        TextElement.Foreground="{StaticResource TextPrimary}" FontFamily="Segoe UI"
+        FontSize="14">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>  <!-- Header + search -->
@@ -18,7 +19,7 @@
         <!-- Header + search -->
         <Border Grid.Row="0" Background="{StaticResource BgSurface}" Padding="16,12" BorderBrush="{StaticResource BgOverlay}" BorderThickness="0,0,0,1">
             <DockPanel>
-                <TextBlock Text="📚 Step Catalog" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource AccentYellow}" VerticalAlignment="Center"/>
+                <TextBlock Text="📚 Step Catalog" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource AccentYellow}" VerticalAlignment="Center"/>
                 <TextBox DockPanel.Dock="Right" Width="300" Margin="16,0,0,0"
                          materialDesign:HintAssist.Hint="Search steps..."
                          x:Name="SearchBox" TextChanged="SearchBox_TextChanged"/>
@@ -66,11 +67,11 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource TextPrimary}"/>
-                                    <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextMuted}" FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0"/>
                                 </StackPanel>
                                 <Border Grid.Column="1" Background="{StaticResource BgOverlay}" CornerRadius="3" Padding="8,3" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Category}" Foreground="{StaticResource AccentMauve}" FontSize="10" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Category}" Foreground="{StaticResource AccentMauve}" FontSize="12" FontWeight="SemiBold"/>
                                 </Border>
                             </Grid>
                         </Border>
@@ -82,7 +83,7 @@
         <!-- Button bar -->
         <Border Grid.Row="3" Background="{StaticResource BgSurface}" Padding="16,10" BorderBrush="{StaticResource BgOverlay}" BorderThickness="0,1,0,0">
             <DockPanel>
-                <TextBlock x:Name="SelectedLabel" Text="No step selected" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center"/>
+                <TextBlock x:Name="SelectedLabel" Text="No step selected" Foreground="{StaticResource TextMuted}" FontSize="13" VerticalAlignment="Center"/>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="Cancel" Click="CancelButton_Click"
                             Style="{StaticResource MaterialDesignFlatButton}" Foreground="{StaticResource TextSecondary}"

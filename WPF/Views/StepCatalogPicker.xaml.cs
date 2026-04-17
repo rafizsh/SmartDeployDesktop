@@ -75,7 +75,7 @@ namespace SmartDeployDesktop.Views
 
         /// <summary>
         /// Single click selects the entry and enables the Add button.
-        /// Double click (ClickCount == 2) selects and adds immediately.
+        /// Double click (ClickCount == 2) selects and closes immediately.
         /// </summary>
         private void StepEntry_Click(object sender, MouseButtonEventArgs e)
         {

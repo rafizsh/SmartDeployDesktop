@@ -1,7 +1,5 @@
 using System;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using SmartDeployDesktop.Services;
 using SmartDeployDesktop.ViewModels;
@@ -10,14 +8,16 @@ namespace SmartDeployDesktop.Views
 {
     /// <summary>
     /// Modal dialog for editing a single task sequence.
-    /// Auto-saves on every change (debounced in the ViewModel) - there is no Cancel.
+    /// Uses explicit Save / Cancel buttons - no auto-save.
     /// </summary>
     public partial class TaskSequenceEditor : Window
     {
         private readonly TaskSequenceEditorViewModel _vm;
         private readonly ApiClient _api;
 
-        private bool _closingHandled;
+        // Set when Save or Cancel triggers the close via RequestClose so the
+        // Closing handler knows not to show the "unsaved changes" prompt.
+        private bool _programmaticClose;
 
         public TaskSequenceEditor(ApiClient api, TaskSequenceDto sequence)
         {
@@ -26,17 +26,33 @@ namespace SmartDeployDesktop.Views
             _vm = new TaskSequenceEditorViewModel(api);
             DataContext = _vm;
 
-            // Kick off async initialization without blocking the constructor.
+            // VM raises this when Save (after successful save) or Cancel is clicked.
+            _vm.RequestClose += (_, __) =>
+            {
+                _programmaticClose = true;
+                Close();
+            };
+
+            // Load the sequence after the window is visible so any errors surface in the UI.
             Loaded += async (_, __) => await _vm.InitializeAsync(sequence);
 
-            // Flush any pending auto-save when the user closes the window.
-            Closing += async (_, e) =>
+            // Warn the user if they X-out the window with unsaved changes.
+            Closing += (_, e) =>
             {
-                if (_closingHandled || !_vm.HasUnsavedChanges) return;
-                _closingHandled = true;
-                e.Cancel = true;
-                await _vm.SaveAsync();
-                Dispatcher.InvokeAsync(Close);
+                if (_programmaticClose) return;
+                if (!_vm.HasUnsavedChanges) return;
+
+                var result = MessageBox.Show(
+                    "You have unsaved changes. Close without saving?",
+                    "Unsaved Changes",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning,
+                    MessageBoxResult.No);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    e.Cancel = true;
+                }
             };
         }
 
@@ -65,7 +81,5 @@ namespace SmartDeployDesktop.Views
                 _vm.AddStepFromCatalog(picker.SelectedEntry);
             }
         }
-
-        private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
     }
 }

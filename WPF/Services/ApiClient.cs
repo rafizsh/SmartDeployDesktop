@@ -195,6 +195,9 @@ namespace SmartDeployDesktop.Services
         public async Task<ConditionHelpersResult> GetConditionHelpersAsync()
             => await GetAsync<ConditionHelpersResult>("/api/task-sequences/condition-helpers");
 
+        public async Task<StepFillPreviewResult> GetStepFillPreviewAsync(string stepType)
+            => await GetAsync<StepFillPreviewResult>($"/api/task-sequences/fill-preview/{Uri.EscapeDataString(stepType)}");
+
         // Answer Files
         public async Task<List<AnswerFileDto>> GetAnswerFilesAsync()
             => await GetAsync<List<AnswerFileDto>>("/api/task-sequences/answer-files");
@@ -435,36 +438,37 @@ namespace SmartDeployDesktop.Services
 
     public class TaskSequenceDto
     {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Description { get; set; } = "";
-        [JsonProperty("os_version")] public string OsVersion { get; set; } = "";
+        [JsonProperty("id")]           public string Id { get; set; } = "";
+        [JsonProperty("name")]         public string Name { get; set; } = "";
+        [JsonProperty("description")]  public string Description { get; set; } = "";
+        [JsonProperty("os_version")]   public string OsVersion { get; set; } = "";
         [JsonProperty("architecture")] public string Architecture { get; set; } = "x64";
-        public List<TaskStepDto> Steps { get; set; } = new();
-        public Dictionary<string, string> Variables { get; set; } = new();
-        public string? Created { get; set; }
-        public string? Modified { get; set; }
-        public string Version { get; set; } = "1.0";
+        [JsonProperty("steps")]        public List<TaskStepDto> Steps { get; set; } = new();
+        [JsonProperty("variables")]    public Dictionary<string, string> Variables { get; set; } = new();
+        [JsonProperty("created")]      public string? Created { get; set; }
+        [JsonProperty("modified")]     public string? Modified { get; set; }
+        [JsonProperty("version")]      public string Version { get; set; } = "1.0";
     }
 
     public class TaskStepDto
     {
-        public string Id { get; set; } = "";
-        public int Order { get; set; }
-        public string Name { get; set; } = "";
-        public string Type { get; set; } = "";
-        public bool Enabled { get; set; } = true;
-        [JsonProperty("continue_on_error")] public bool ContinueOnError { get; set; } = false;
-        public Dictionary<string, object> Parameters { get; set; } = new();
-        public StepConditionDto? Condition { get; set; }
+        [JsonProperty("id")]                 public string Id { get; set; } = "";
+        [JsonProperty("order")]              public int Order { get; set; }
+        [JsonProperty("name")]               public string Name { get; set; } = "";
+        [JsonProperty("type")]               public string Type { get; set; } = "";
+        [JsonProperty("enabled")]            public bool Enabled { get; set; } = true;
+        [JsonProperty("continue_on_error")]  public bool ContinueOnError { get; set; } = false;
+        [JsonProperty("parameters")]         public Dictionary<string, object> Parameters { get; set; } = new();
+        [JsonProperty("condition", NullValueHandling = NullValueHandling.Ignore)]
+                                             public StepConditionDto? Condition { get; set; }
     }
 
     public class StepConditionDto
     {
-        public string Variable { get; set; } = "";
-        public string Operator { get; set; } = "equals";
-        public string Value { get; set; } = "";
-        public bool Negate { get; set; } = false;
+        [JsonProperty("variable")] public string Variable { get; set; } = "";
+        [JsonProperty("operator")] public string Operator { get; set; } = "equals";
+        [JsonProperty("value")]    public string Value { get; set; } = "";
+        [JsonProperty("negate")]   public bool Negate { get; set; } = false;
     }
 
     public class StepCatalogEntryDto
@@ -499,6 +503,12 @@ namespace SmartDeployDesktop.Services
     {
         [JsonProperty("gather_variables")] public List<GatherVariableDto> GatherVariables { get; set; } = new();
         public List<ConditionOperatorDto> Operators { get; set; } = new();
+    }
+
+    public class StepFillPreviewResult
+    {
+        [JsonProperty("step_type")] public string StepType { get; set; } = "";
+        [JsonProperty("fill")]      public Dictionary<string, object> Fill { get; set; } = new();
     }
 
     public class CreateTaskSequenceRequest
